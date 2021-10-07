@@ -8,12 +8,14 @@
 #define DHTPIN 8
 #define DHT_VCC  7
 #define DHT_GND  6
-float temper[5];  //массив данных с датчика
+int temper[5][2];  //массив данных с датчика
 float temp = 0.0;
-int r = 0;
-int m = 1;//переменная с номером датчика
-float mass = 0;
-float massi = 0;//переменная со значением от датчика
+int r = 0;//переменная с номером датчика
+int m = 1;
+int mass = 0;//переменная со значением от датчика
+int massi = 0;
+int timi1 = 0;
+int timi2 = 0;
 #include <dht11.h> // подключаем библиотеку для DHT11
 #include <Gyver433.h>
 #include <GyverNTC.h>
@@ -29,9 +31,10 @@ Gyver433_RX <RADIO_DATA, RADIO_BUF_SIZE, G433_XOR> rx;
 GyverNTC ntc (0, 15000, 6430, 25, 15000);
 MicroDS18B20 <0> ds;
 #include "GyverTimer.h"
+
 GTimer myTimer(MS);
 GTimer myTimer1(MS); // создать миллисекундный таймер
-
+GTimer myTimer2(MS);
 
 void setup() {
   Serial.begin(9600);
@@ -50,17 +53,18 @@ void setup() {
 }
 
 void loop() {
-  //
+  //запуск опроса функции датчика влажности
   if (myTimer.isReady())dht() ;
 
-  //перебор массива и фызов функции дисплея
+
+  //перебор массива и вызов функции дисплея
   if (myTimer1.isReady()) {
     //for (float &mass : temper) {
-    mass = temper[r];
-    massi = temper[r + 1];
+    mass = temper[r][0];
+    massi = temper[r + 1][0];
     disp(mass, r , 0) ;
-    disp(massi, r+1 , 1) ;
-    if (r < 5) {
+    disp(massi, r + 1 , 1) ;
+    if (r < 4) {
       r = r + 1;
       m = m + 1;
     }
@@ -68,9 +72,15 @@ void loop() {
       r = 1;
       m = 2;
     }
-    // Serial.println(r);
-    //Serial.println(mass);
+    Serial.print(temper[1][0] * 0.01);
+    Serial.print(" ; ");
+    Serial.println(temper[2][0] * 0.01);
+    Serial.print(temper[1][1]);
+    Serial.print(" ; ");
+    Serial.println(temper[2][1]);
   }
+
+
   //опрос радиоприемника и запись значени в массив
   if (rx.tickWait()) {
     switch (rx.buffer[0]) { // Получаем адрес модуля
@@ -82,7 +92,10 @@ void loop() {
         //Serial.print(ntc.computeTemp(rx.buffer[1] << 8 | rx.buffer[2]));
         //Serial.println("°C");
         temp = ntc.computeTemp(rx.buffer[1] << 8 | rx.buffer[2]);
-        temper[1] = temp;
+        temper[1][0] = temp * 100;
+        timi1 = myTimer2 - timi1;
+        temper[1][1] = timi1;
+
         // disp(temp + 0.4, 1, 0);
         break;
       case 0xA3:            // Фоторезистор
@@ -101,7 +114,10 @@ void loop() {
         break;
       case 0xA7:            // Термистор2
         temp = ntc.computeTemp(rx.buffer[1] << 8 | rx.buffer[2]);
-        temper[2] = temp;
+        temper[2][0] = temp * 100;
+        timi2 += 1;
+        temper[2][1] = timi2;
+
         //disp(temp, 2, 1);
         break;
     }
@@ -110,35 +126,26 @@ void loop() {
 
 
 //функция вывода на дисплей принимает значение датчика, номер датчика, номер строчки.
-void disp (float data, int n, int stro) {
+void disp (int data, int n, int stro) {
   //вывод первой строки
-  int ny;
-  float datay;
   lcd.setCursor(0, stro);
-  lcd.print("Temp");
-  lcd.print(n);
-  lcd.print(":   ");
-  //lcd.print("Temp" + n + ":   ");
-  lcd.print(data);
-  lcd.print(F("\337C "));
-}
-/*
-  void dht () {
-  float hum;
-  float chk = DHT11.read(DHTPIN);
-  // Влажность
-  lcd.setCursor(0, 1);
-  lcd.print("Humidity:");
-  hum = (float)DHT11.humidity, 2;
-  lcd.print(hum);
-  temper[9] = hum;
-  lcd.print(" % ");
+  if (n == 4) {
+    lcd.print("Humidity: ");
+    lcd.print(data * 0.01);
+    lcd.print(F("% "));
+  }
+  else {
+    lcd.print("Temp");
+    lcd.print(n);
+    lcd.print(":   ");
+    lcd.print(data * 0.01);
+    lcd.print(F("\337C "));
+  }
 
-  // Температура
-  lcd.setCursor(0, 0);
-  lcd.print("Temp:    ");
-  lcd.print((float)DHT11.temperature, 2);
-  lcd.print("\337C ");
+  //lcd.print("Temp" + n + ":   ");
+
+}
+
 
   }*/
 //функция датчика флажности и температуры,
@@ -148,9 +155,9 @@ void dht () {
   float chk = DHT11.read(DHTPIN);
   // Влажность
   hum = (float)DHT11.humidity, 2;
-  temper[3] = hum; //передает значение влажность в массив
+  temper[4][0] = hum * 100; //передает значение влажность в массив
 
   // Температура
   tem = (float)DHT11.temperature, 2;
-  temper[4] = tem;//передает значение температура в массив
+  temper[3][0] = tem * 100; //передает значение температура в массив
 }
